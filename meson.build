@@ -1,6 +1,7 @@
 project('woodshed', 'c', 'cpp',
-  version: '0.1.0',
+  version: '0.1',
   license: 'GPL-2.0-or-later',
+  license_files: ['COPYING'],
   meson_version: '>= 1.4',
   default_options: ['cpp_std=c++20', 'c_std=c11', 'warning_level=2'])
 
@@ -15,6 +16,7 @@ app_id = 'io.github.kebabroyal.Woodshed'
 subdir('core')
 subdir('gobject')
 subdir('ui')
+subdir('data')
 
 devenv = environment()
 devenv.prepend('GI_TYPELIB_PATH', meson.current_build_dir() / 'gobject')

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Woodshed
+Comment=Record, slow down and loop music to transcribe it
+Exec=woodshed
+Icon=@APP_ID@
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Music;
+Keywords=transcribe;slow down;loop;jazz;piano;
+StartupNotify=true

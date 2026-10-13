@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="note" gradientUnits="userSpaceOnUse" x1="50" y1="88" x2="108" y2="44">
+      <stop offset="0" stop-color="#f66151"/>
+      <stop offset="0.5" stop-color="#fc8961"/>
+      <stop offset="1" stop-color="#fcfdbf"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#21122a"/>
+      <stop offset="1" stop-color="#0e0812"/>
+    </linearGradient>
+    <clipPath id="card">
+      <rect x="12" y="12" width="104" height="100" rx="14"/>
+    </clipPath>
+  </defs>
+  <!-- Base with depth -->
+  <rect x="12" y="16" width="104" height="100" rx="14" fill="#1a1520"/>
+  <rect x="12" y="12" width="104" height="100" rx="14" fill="url(#screen)"/>
+  <g clip-path="url(#card)">
+    <!-- Loop selection -->
+    <rect x="70" y="12" width="28" height="100" fill="#3584e4" opacity="0.35"/>
+    <rect x="69" y="12" width="2" height="100" fill="#62a0ea"/>
+    <rect x="97" y="12" width="2" height="100" fill="#62a0ea"/>
+    <!-- Keys -->
+    <rect x="12" y="12" width="28" height="100" fill="#f6f5f4"/>
+    <g fill="#241f31">
+      <rect x="12" y="18" width="17" height="8"/>
+      <rect x="12" y="34" width="17" height="8"/>
+      <rect x="12" y="56" width="17" height="8"/>
+      <rect x="12" y="72" width="17" height="8"/>
+      <rect x="12" y="88" width="17" height="8"/>
+    </g>
+    <path d="M29 30h11M29 48h11M29 68h11M29 84h11M29 104h11" stroke="#c0bfbc" stroke-width="1"/>
+    <!-- Harmonics -->
+    <path d="M52 60h10M68 48h8M84 36h10M102 28h4" stroke="#c061cb" stroke-width="4" stroke-linecap="round" opacity="0.45"/>
+    <!-- Rising line, one note bent up -->
+    <g fill="none" stroke="url(#note)" stroke-width="8" stroke-linecap="round">
+      <path d="M52 88h10"/>
+      <path d="M70 76h6"/>
+      <path d="M84 64h8c6 0 8 -12 15 -12"/>
+    </g>
+  </g>
+</svg>

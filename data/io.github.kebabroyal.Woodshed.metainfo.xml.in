@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>@APP_ID@</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-or-later</project_license>
+  <name>Woodshed</name>
+  <summary>Slow down and loop music to transcribe it</summary>
+  <developer id="io.github.kebabroyal">
+    <name>kebabroyal</name>
+  </developer>
+  <description>
+    <p>
+      Record what another app plays, then work through it phrase by phrase.
+      Made for transcribing jazz piano solos.
+    </p>
+    <ul>
+      <li>Record any app’s audio, the whole system or a microphone</li>
+      <li>See the waveform, or the notes on a piano keyboard</li>
+      <li>Drag to select a phrase and loop it seamlessly</li>
+      <li>Slow down without changing pitch</li>
+      <li>Transpose, or tune a record to A440</li>
+      <li>Play and pause the source app from Woodshed</li>
+      <li>Every take is saved with its settings</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">@APP_ID@.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+  <categories>
+    <category>Audio</category>
+    <category>Music</category>
+  </categories>
+  <keywords>
+    <keyword>transcribe</keyword>
+    <keyword>slow down</keyword>
+    <keyword>loop</keyword>
+    <keyword>jazz</keyword>
+    <keyword>piano</keyword>
+  </keywords>
+  <releases>
+    <release version="0.1" date="2026-10-13">
+      <description>
+        <p>First version: recording, loops, slow down, transpose, pitch view, saved takes.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -1,0 +1,104 @@
+{
+  "id": "io.github.kebabroyal.Woodshed",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "50",
+  "sdk": "org.gnome.Sdk",
+  "command": "woodshed",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--device=dri",
+    "--filesystem=xdg-run/pipewire-0",
+    "--filesystem=xdg-music/Woodshed:create",
+    "--talk-name=org.mpris.MediaPlayer2.*"
+  ],
+  "cleanup": [
+    "/include",
+    "/lib/pkgconfig",
+    "/lib/cmake",
+    "/share/pkgconfig",
+    "/share/gir-1.0",
+    "/share/doc",
+    "/share/info",
+    "/share/man",
+    "/bin/fftw*",
+    "*.a",
+    "*.la"
+  ],
+  "modules": [
+    {
+      "name": "fftw3f",
+      "buildsystem": "autotools",
+      "config-opts": [
+        "--enable-float",
+        "--enable-shared",
+        "--disable-static",
+        "--disable-fortran",
+        "--disable-doc"
+      ],
+      "build-options": {
+        "arch": {
+          "x86_64": {
+            "config-opts": ["--enable-sse2", "--enable-avx", "--enable-avx2"]
+          },
+          "aarch64": {
+            "config-opts": ["--enable-neon"]
+          }
+        }
+      },
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://www.fftw.org/fftw-3.3.10.tar.gz",
+          "sha256": "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467"
+        }
+      ]
+    },
+    {
+      "name": "rubberband",
+      "buildsystem": "meson",
+      "config-opts": [
+        "-Dfft=fftw",
+        "-Dresampler=builtin",
+        "-Djni=disabled",
+        "-Dladspa=disabled",
+        "-Dlv2=disabled",
+        "-Dvamp=disabled",
+        "-Dcmdline=disabled",
+        "-Dtests=disabled"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://breakfastquay.com/files/releases/rubberband-4.0.0.tar.bz2",
+          "sha256": "af050313ee63bc18b35b2e064e5dce05b276aaf6d1aa2b8a82ced1fe2f8028e9"
+        }
+      ]
+    },
+    {
+      "name": "nlohmann-json",
+      "buildsystem": "cmake-ninja",
+      "config-opts": ["-DJSON_BuildTests=OFF", "-DJSON_Install=ON"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz",
+          "sha256": "42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa"
+        }
+      ]
+    },
+    {
+      "name": "woodshed",
+      "buildsystem": "meson",
+      "config-opts": ["-Dtests=false"],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "../..",
+          "skip": ["build", ".flatpak-builder", "flatpak-build", "flatpak-repo"]
+        }
+      ]
+    }
+  ]
+}

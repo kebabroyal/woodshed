@@ -79,12 +79,6 @@ class WoodshedWindow extends Adw.ApplicationWindow {
         const header = new Adw.HeaderBar({title_widget: this._buildSourcePicker()});
         header.pack_start(this._buildRemote());
         header.pack_end(this._buildDisplaySwitch());
-        this._focusButton = new Gtk.ToggleButton({
-            label: 'Focus',
-            tooltip_text: 'Sharper pitch lines (F)',
-            valign: Gtk.Align.CENTER,
-        });
-        header.pack_end(this._focusButton);
         this._stack = new Gtk.Stack({transition_type: Gtk.StackTransitionType.CROSSFADE});
         this._stack.add_named(new Adw.StatusPage({
             icon_name: 'media-record-symbolic',
@@ -96,11 +90,6 @@ class WoodshedWindow extends Adw.ApplicationWindow {
             GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE,
             (_binding, display) => [true, DISPLAY_NAMES[display]],
             (_binding, name) => [true, DISPLAY_NAMES.indexOf(name)]);
-        this._waveform.bind_property('focused', this._focusButton, 'active',
-            GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE);
-        this._waveform.bind_property_full('display', this._focusButton, 'visible',
-            GObject.BindingFlags.SYNC_CREATE,
-            (_binding, display) => [true, display === Woodshed.Display.SPECTROGRAM], null);
         this._stack.add_named(this._waveform, 'take');
 
         this._toasts = new Adw.ToastOverlay({child: this._stack});
@@ -518,7 +507,6 @@ class WoodshedWindow extends Adw.ApplicationWindow {
         add('l', () => (this.engine.looping = !this.engine.looping));
         add('Escape', () => this.engine.clear_loop());
         add('0', () => this._waveform.zoom_to_fit());
-        add('f', () => (this._waveform.focused = !this._waveform.focused));
         add('Page_Up', () => this.engine.transpose++);
         add('Page_Down', () => this.engine.transpose--);
         for (const key of ['minus', 'KP_Subtract'])

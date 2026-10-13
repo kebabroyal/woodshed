@@ -10,7 +10,7 @@ G_BEGIN_DECLS
 /**
  * WoodshedDisplay:
  * @WOODSHED_DISPLAY_WAVEFORM: amplitude
- * @WOODSHED_DISPLAY_SPECTROGRAM: pitch over time, piano keys on the left
+ * @WOODSHED_DISPLAY_SPECTROGRAM: pitch over time as sharp lines, piano keys on the left
  */
 typedef enum
 {
@@ -62,21 +62,6 @@ WoodshedDisplay woodshed_waveform_get_display(WoodshedWaveform *self);
  * The spectrogram is computed while shown, in idle time.
  */
 void woodshed_waveform_set_display(WoodshedWaveform *self, WoodshedDisplay display);
-
-/**
- * woodshed_waveform_get_focused:
- * @self: a #WoodshedWaveform
- *
- * Returns: whether the spectrogram is reassigned
- */
-gboolean woodshed_waveform_get_focused(WoodshedWaveform *self);
-
-/**
- * woodshed_waveform_set_focused:
- * @self: a #WoodshedWaveform
- * @focused: move energy to measured frequencies: sharper pitch lines
- */
-void woodshed_waveform_set_focused(WoodshedWaveform *self, gboolean focused);
 
 /**
  * woodshed_waveform_zoom_to_fit:

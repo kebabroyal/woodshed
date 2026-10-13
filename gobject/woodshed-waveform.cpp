@@ -91,8 +91,7 @@ struct _WoodshedWaveform
     const char *cursor;
     int hover_note;
 
-    gboolean focused;
-    spectrum_cache *spectra[2];
+    spectrum_cache *spectrum;
     guint spectrum_idle;
 };
 
@@ -103,7 +102,6 @@ enum
     PROP_0,
     PROP_ENGINE,
     PROP_DISPLAY,
-    PROP_FOCUSED,
     N_PROPS
 };
 
@@ -189,7 +187,7 @@ static double note_y(double note, int height)
 
 static spectrum_cache &active_spectrum(WoodshedWaveform *self)
 {
-    return *self->spectra[self->focused ? 1 : 0];
+    return *self->spectrum;
 }
 
 // Grid note where a key sits. Keys follow the take's tuning and name what is heard
@@ -858,24 +856,6 @@ void woodshed_waveform_set_display(WoodshedWaveform *self, WoodshedDisplay displ
     g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_DISPLAY]);
 }
 
-gboolean woodshed_waveform_get_focused(WoodshedWaveform *self)
-{
-    g_return_val_if_fail(WOODSHED_IS_WAVEFORM(self), FALSE);
-    return self->focused;
-}
-
-void woodshed_waveform_set_focused(WoodshedWaveform *self, gboolean focused)
-{
-    g_return_if_fail(WOODSHED_IS_WAVEFORM(self));
-    focused = !!focused;
-    if (self->focused == focused)
-        return;
-    self->focused = focused;
-    schedule_spectrum(self);
-    gtk_widget_queue_draw(GTK_WIDGET(self));
-    g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_FOCUSED]);
-}
-
 void woodshed_waveform_zoom_to_fit(WoodshedWaveform *self)
 {
     g_return_if_fail(WOODSHED_IS_WAVEFORM(self));
@@ -896,16 +876,14 @@ static void woodshed_waveform_dispose(GObject *object)
     woodshed_waveform_set_engine(self, nullptr);
     g_clear_handle_id(&self->spectrum_idle, g_source_remove);
     g_clear_pointer(&self->wave, gsk_render_node_unref);
-    for (spectrum_cache *cache : self->spectra)
-        if (cache)
-            cache->clear_tiles();
+    if (self->spectrum)
+        self->spectrum->clear_tiles();
     G_OBJECT_CLASS(woodshed_waveform_parent_class)->dispose(object);
 }
 
 static void woodshed_waveform_finalize(GObject *object)
 {
-    for (spectrum_cache *cache : WOODSHED_WAVEFORM(object)->spectra)
-        delete cache;
+    delete WOODSHED_WAVEFORM(object)->spectrum;
     G_OBJECT_CLASS(woodshed_waveform_parent_class)->finalize(object);
 }
 
@@ -916,8 +894,6 @@ static void woodshed_waveform_get_property(GObject *object, guint prop_id, GValu
         g_value_set_object(value, WOODSHED_WAVEFORM(object)->engine);
     else if (prop_id == PROP_DISPLAY)
         g_value_set_enum(value, WOODSHED_WAVEFORM(object)->display);
-    else if (prop_id == PROP_FOCUSED)
-        g_value_set_boolean(value, WOODSHED_WAVEFORM(object)->focused);
     else
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 }
@@ -931,8 +907,6 @@ static void woodshed_waveform_set_property(GObject *object, guint prop_id, const
     else if (prop_id == PROP_DISPLAY)
         woodshed_waveform_set_display(WOODSHED_WAVEFORM(object),
                                       static_cast<WoodshedDisplay>(g_value_get_enum(value)));
-    else if (prop_id == PROP_FOCUSED)
-        woodshed_waveform_set_focused(WOODSHED_WAVEFORM(object), g_value_get_boolean(value));
     else
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 }
@@ -958,10 +932,6 @@ static void woodshed_waveform_class_init(WoodshedWaveformClass *klass)
         "display", nullptr, nullptr, WOODSHED_TYPE_DISPLAY, WOODSHED_DISPLAY_WAVEFORM,
         static_cast<GParamFlags>(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
                                  G_PARAM_EXPLICIT_NOTIFY));
-    properties[PROP_FOCUSED] = g_param_spec_boolean(
-        "focused", nullptr, nullptr, FALSE,
-        static_cast<GParamFlags>(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-                                 G_PARAM_EXPLICIT_NOTIFY));
     g_object_class_install_properties(object_class, N_PROPS, properties);
 }
 
@@ -970,8 +940,8 @@ static void woodshed_waveform_init(WoodshedWaveform *self)
     GtkWidget *widget = GTK_WIDGET(self);
     self->fit = TRUE;
     self->hover_note = -1;
-    self->spectra[0] = new spectrum_cache{false};
-    self->spectra[1] = new spectrum_cache{true};
+    // Reassigned: sharp lines at measured pitch.
+    self->spectrum = new spectrum_cache{true};
 
     self->drag = gtk_gesture_drag_new();
     gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(self->drag), GDK_BUTTON_PRIMARY);

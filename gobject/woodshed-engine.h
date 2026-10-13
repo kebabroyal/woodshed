@@ -280,6 +280,44 @@ gboolean woodshed_engine_get_looping(WoodshedEngine *self);
  */
 void woodshed_engine_set_looping(WoodshedEngine *self, gboolean looping);
 
+/**
+ * woodshed_engine_get_file:
+ * @self: a #WoodshedEngine
+ *
+ * Takes are saved as FLAC in ~/Music/Woodshed when recording stops,
+ * with their settings in a .json file beside them.
+ *
+ * Returns: (nullable): path of the current take
+ */
+const char *woodshed_engine_get_file(WoodshedEngine *self);
+
+/**
+ * woodshed_engine_open:
+ * @self: a #WoodshedEngine
+ * @path: audio file, 48 kHz for now
+ *
+ * Loads in the background, with saved settings if any. Errors go to #WoodshedEngine::error.
+ */
+void woodshed_engine_open(WoodshedEngine *self, const char *path);
+
+/**
+ * woodshed_engine_open_last:
+ * @self: a #WoodshedEngine
+ *
+ * Reopens the take of the last session.
+ *
+ * Returns: whether there was one to open
+ */
+gboolean woodshed_engine_open_last(WoodshedEngine *self);
+
+/**
+ * woodshed_engine_flush:
+ * @self: a #WoodshedEngine
+ *
+ * Waits for saves in progress and writes pending settings. Call before quitting.
+ */
+void woodshed_engine_flush(WoodshedEngine *self);
+
 G_END_DECLS
 
 #endif

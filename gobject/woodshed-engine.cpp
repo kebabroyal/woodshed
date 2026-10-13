@@ -5,17 +5,22 @@
 #include "woodshed/capture.hpp"
 #include "woodshed/player.hpp"
 #include "woodshed/pw_session.hpp"
+#include "woodshed/take_file.hpp"
 #include "woodshed/tuning.hpp"
+
+#include <gio/gio.h>
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 static constexpr guint TICK_MS = 33;
+static constexpr guint STATE_SAVE_SECONDS = 2;
 
 struct engine_impl
 {
@@ -27,6 +32,13 @@ struct engine_impl
     std::map<std::uint32_t, WoodshedSource *> by_id;
     std::atomic<bool> nodes_pending{false};
     guint tick = 0;
+
+    std::string file; // take path; empty until recorded or opened
+    std::string recorded;
+    std::string source_name;
+    guint state_save = 0;
+    unsigned saving = 0;
+    unsigned load_generation = 0;
 };
 
 struct _WoodshedEngine
@@ -56,6 +68,7 @@ enum
     PROP_TRANSPOSE,
     PROP_FINE_TUNE,
     PROP_TUNING,
+    PROP_FILE,
     PROP_DURATION,
     PROP_POSITION,
     PROP_LEVEL,
@@ -117,6 +130,8 @@ static woodshed::loop_region current_loop(WoodshedEngine *self)
         return {self->loop_start, self->loop_end, static_cast<bool>(self->looping)};
     return {0, frames_of(self), static_cast<bool>(self->looping)};
 }
+
+static void schedule_state_save(WoodshedEngine *self);
 
 static void push_loop(WoodshedEngine *self)
 {
@@ -284,6 +299,7 @@ static void stop_player(WoodshedEngine *self)
     self->impl->player.reset();
     set_state(self, WOODSHED_STATE_PAUSED);
     update_tick(self);
+    schedule_state_save(self);
     notify(self, PROP_POSITION);
 }
 
@@ -315,12 +331,261 @@ static gboolean on_tick(gpointer data)
     return G_SOURCE_CONTINUE;
 }
 
+// Saving: each take as FLAC in the library, its settings in a JSON file beside it.
+
+static std::string take_string(char *owned)
+{
+    std::string out = owned ? owned : "";
+    g_free(owned);
+    return out;
+}
+
+static std::string library_dir()
+{
+    const char *music = g_get_user_special_dir(G_USER_DIRECTORY_MUSIC);
+    return take_string(music ? g_build_filename(music, "Woodshed", nullptr)
+                             : g_build_filename(g_get_home_dir(), "Music", "Woodshed", nullptr));
+}
+
+static std::string last_take_pointer()
+{
+    return take_string(g_build_filename(g_get_user_state_dir(), "woodshed", "last-take", nullptr));
+}
+
+static std::string sidecar_of(const std::string &take)
+{
+    const std::size_t dot = take.rfind('.');
+    return (dot == std::string::npos ? take : take.substr(0, dot)) + ".json";
+}
+
+static std::string new_take_path(const std::string &app)
+{
+    GDateTime *now = g_date_time_new_now_local();
+    std::string stem = take_string(g_date_time_format(now, "%Y-%m-%d %H.%M"));
+    g_date_time_unref(now);
+    std::string name = app.empty() ? "Recording" : app;
+    std::replace_if(name.begin(), name.end(), [](char c) { return c == '/' || c == '\\'; }, '-');
+    stem += " " + name;
+    const std::string dir = library_dir();
+    std::string path = take_string(g_build_filename(dir.c_str(), (stem + ".flac").c_str(), nullptr));
+    for (int n = 2; g_file_test(path.c_str(), G_FILE_TEST_EXISTS); ++n)
+        path = take_string(g_build_filename(
+            dir.c_str(), (stem + " " + std::to_string(n) + ".flac").c_str(), nullptr));
+    return path;
+}
+
+static bool write_file(WoodshedEngine *self, const std::string &path, const std::string &text)
+{
+    char *dir = g_path_get_dirname(path.c_str());
+    g_mkdir_with_parents(dir, 0755);
+    g_free(dir);
+    GError *error = nullptr;
+    if (g_file_set_contents(path.c_str(), text.c_str(), static_cast<gssize>(text.size()), &error))
+        return true;
+    fail(self, error->message);
+    g_error_free(error);
+    return false;
+}
+
+static woodshed::take_state state_of(WoodshedEngine *self)
+{
+    woodshed::take_state state;
+    state.source = self->impl->source_name;
+    state.recorded = self->impl->recorded;
+    state.tuning = self->tuning;
+    state.speed = self->speed;
+    state.transpose = self->transpose;
+    state.fine_tune = self->fine_tune;
+    state.loop_start = to_seconds(self->loop_start);
+    state.loop_end = to_seconds(self->loop_end);
+    state.looping = self->looping;
+    state.position = to_seconds(self->impl->player ? self->impl->player->position() : self->position);
+    return state;
+}
+
+static void save_state_now(WoodshedEngine *self)
+{
+    engine_impl *impl = self->impl;
+    g_clear_handle_id(&impl->state_save, g_source_remove);
+    if (!impl->file.empty())
+        write_file(self, sidecar_of(impl->file), woodshed::to_json(state_of(self)));
+}
+
+static gboolean on_state_save(gpointer data)
+{
+    WoodshedEngine *self = WOODSHED_ENGINE(data);
+    self->impl->state_save = 0;
+    save_state_now(self);
+    return G_SOURCE_REMOVE;
+}
+
+// Called on every user change; writes once things settle.
+static void schedule_state_save(WoodshedEngine *self)
+{
+    engine_impl *impl = self->impl;
+    if (impl->file.empty())
+        return;
+    g_clear_handle_id(&impl->state_save, g_source_remove);
+    impl->state_save = g_timeout_add_seconds(STATE_SAVE_SECONDS, on_state_save, self);
+}
+
+static void remember_last(WoodshedEngine *self, const std::string &path)
+{
+    write_file(self, last_take_pointer(), path + "\n");
+}
+
+struct save_job
+{
+    std::shared_ptr<const woodshed::audio_take> take;
+    std::string path;
+};
+
+static void save_in_thread(GTask *task, gpointer, gpointer data, GCancellable *)
+{
+    const auto *job = static_cast<save_job *>(data);
+    try
+    {
+        woodshed::save_flac(*job->take, job->path);
+        g_task_return_boolean(task, TRUE);
+    }
+    catch (const std::exception &error)
+    {
+        g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, "%s", error.what());
+    }
+}
+
+static void on_saved(GObject *object, GAsyncResult *result, gpointer)
+{
+    WoodshedEngine *self = WOODSHED_ENGINE(object);
+    --self->impl->saving;
+    GError *error = nullptr;
+    if (!g_task_propagate_boolean(G_TASK(result), &error))
+    {
+        fail(self, error->message);
+        g_error_free(error);
+        return;
+    }
+    remember_last(self, static_cast<save_job *>(g_task_get_task_data(G_TASK(result)))->path);
+}
+
+static void save_take(WoodshedEngine *self)
+{
+    engine_impl *impl = self->impl;
+    const WoodshedSource *source = self->source;
+    impl->source_name = source ? woodshed_source_get_name(self->source) : "";
+    GDateTime *now = g_date_time_new_now_local();
+    impl->recorded = take_string(g_date_time_format(now, "%Y-%m-%dT%H:%M:%S%:z"));
+    g_date_time_unref(now);
+    impl->file = new_take_path(impl->source_name);
+    notify(self, PROP_FILE);
+
+    char *dir = g_path_get_dirname(impl->file.c_str());
+    g_mkdir_with_parents(dir, 0755);
+    g_free(dir);
+    save_state_now(self);
+    GTask *task = g_task_new(self, nullptr, on_saved, nullptr);
+    g_task_set_task_data(task, new save_job{impl->take, impl->file},
+                         [](gpointer data) { delete static_cast<save_job *>(data); });
+    ++impl->saving;
+    g_task_run_in_thread(task, save_in_thread);
+    g_object_unref(task);
+}
+
+struct load_job
+{
+    std::string path;
+    unsigned generation;
+    std::shared_ptr<woodshed::audio_take> take;
+    std::optional<woodshed::take_state> state;
+};
+
+static void load_in_thread(GTask *task, gpointer, gpointer data, GCancellable *)
+{
+    auto *job = static_cast<load_job *>(data);
+    try
+    {
+        job->take = std::make_shared<woodshed::audio_take>(woodshed::load_audio(job->path));
+        char *text = nullptr;
+        if (g_file_get_contents(sidecar_of(job->path).c_str(), &text, nullptr, nullptr))
+        {
+            try
+            {
+                job->state = woodshed::parse_take_state(text);
+            }
+            catch (const std::exception &)
+            {
+                // Unreadable settings: open the audio alone.
+            }
+            g_free(text);
+        }
+        if (!job->state || job->state->tuning == 0.0)
+        {
+            if (!job->state)
+                job->state.emplace();
+            job->state->tuning = woodshed::detect_tuning(*job->take);
+        }
+        g_task_return_boolean(task, TRUE);
+    }
+    catch (const std::exception &error)
+    {
+        g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, "%s", error.what());
+    }
+}
+
+static void on_loaded(GObject *object, GAsyncResult *result, gpointer)
+{
+    WoodshedEngine *self = WOODSHED_ENGINE(object);
+    engine_impl *impl = self->impl;
+    auto *job = static_cast<load_job *>(g_task_get_task_data(G_TASK(result)));
+    GError *error = nullptr;
+    const bool ok = g_task_propagate_boolean(G_TASK(result), &error);
+    // A recording or another open came first.
+    if (job->generation != impl->load_generation || self->state == WOODSHED_STATE_RECORDING)
+    {
+        g_clear_error(&error);
+        return;
+    }
+    if (!ok)
+    {
+        fail(self, error->message);
+        g_error_free(error);
+        return;
+    }
+
+    if (impl->state_save)
+        save_state_now(self);
+    impl->player.reset();
+    impl->take = job->take;
+    impl->file = job->path;
+    const woodshed::take_state &state = *job->state;
+    impl->source_name = state.source;
+    impl->recorded = state.recorded;
+    self->tuning = state.tuning;
+    self->speed = std::clamp(state.speed, WOODSHED_ENGINE_MIN_SPEED, WOODSHED_ENGINE_MAX_SPEED);
+    self->transpose = std::clamp(state.transpose, -WOODSHED_ENGINE_MAX_TRANSPOSE,
+                                 WOODSHED_ENGINE_MAX_TRANSPOSE);
+    self->fine_tune = std::clamp(state.fine_tune, -WOODSHED_ENGINE_MAX_FINE_TUNE,
+                                 WOODSHED_ENGINE_MAX_FINE_TUNE);
+    self->loop_start = to_frames(self, state.loop_start);
+    self->loop_end = std::max(self->loop_start, to_frames(self, state.loop_end));
+    self->looping = state.looping;
+    self->position = to_frames(self, state.position);
+    set_state(self, frames_of(self) ? WOODSHED_STATE_PAUSED : WOODSHED_STATE_IDLE);
+    update_tick(self);
+    for (int prop : {PROP_FILE, PROP_DURATION, PROP_POSITION, PROP_TUNING, PROP_SPEED, PROP_TRANSPOSE,
+                     PROP_FINE_TUNE, PROP_LOOP_START, PROP_LOOP_END, PROP_HAS_LOOP, PROP_LOOPING})
+        notify(self, prop);
+    remember_last(self, impl->file);
+}
+
 // GObject
 
 static void woodshed_engine_dispose(GObject *object)
 {
     WoodshedEngine *self = WOODSHED_ENGINE(object);
     engine_impl *impl = self->impl;
+    if (impl->state_save)
+        save_state_now(self);
     impl->capture.reset();
     impl->player.reset();
     impl->session.reset();
@@ -387,6 +652,9 @@ static void woodshed_engine_get_property(GObject *object, guint prop_id, GValue 
         break;
     case PROP_TUNING:
         g_value_set_double(value, self->tuning);
+        break;
+    case PROP_FILE:
+        g_value_set_string(value, woodshed_engine_get_file(self));
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -460,6 +728,7 @@ static void woodshed_engine_class_init(WoodshedEngineClass *klass)
         g_param_spec_double("fine-tune", nullptr, nullptr, -WOODSHED_ENGINE_MAX_FINE_TUNE,
                             WOODSHED_ENGINE_MAX_FINE_TUNE, 0.0, rw);
     properties[PROP_TUNING] = g_param_spec_double("tuning", nullptr, nullptr, -50.0, 50.0, 0.0, ro);
+    properties[PROP_FILE] = g_param_spec_string("file", nullptr, nullptr, nullptr, ro);
     g_object_class_install_properties(object_class, N_PROPS, properties);
 
     /**
@@ -528,6 +797,7 @@ void woodshed_engine_set_speed(WoodshedEngine *self, double speed)
     self->speed = speed;
     if (self->impl->player)
         self->impl->player->set_speed(speed);
+    schedule_state_save(self);
     notify(self, PROP_SPEED);
 }
 
@@ -556,6 +826,7 @@ void woodshed_engine_set_transpose(WoodshedEngine *self, int semitones)
         return;
     self->transpose = semitones;
     push_pitch(self);
+    schedule_state_save(self);
     notify(self, PROP_TRANSPOSE);
 }
 
@@ -573,6 +844,7 @@ void woodshed_engine_set_fine_tune(WoodshedEngine *self, double cents)
         return;
     self->fine_tune = cents;
     push_pitch(self);
+    schedule_state_save(self);
     notify(self, PROP_FINE_TUNE);
 }
 
@@ -606,6 +878,7 @@ void woodshed_engine_seek(WoodshedEngine *self, double seconds)
     self->position = to_frames(self, seconds);
     if (self->impl->player)
         self->impl->player->seek(self->position);
+    schedule_state_save(self);
     notify(self, PROP_POSITION);
 }
 
@@ -647,6 +920,9 @@ void woodshed_engine_record_start(WoodshedEngine *self)
     }
     if (impl->player)
         stop_player(self);
+    if (impl->state_save)
+        save_state_now(self);
+    ++impl->load_generation;
 
     WoodshedSource *source = resolve_source(self);
     woodshed_engine_set_source(self, source);
@@ -670,6 +946,8 @@ void woodshed_engine_record_start(WoodshedEngine *self)
     self->position = 0;
     self->loop_start = self->loop_end = 0;
     self->tuning = 0.0;
+    impl->file.clear();
+    notify(self, PROP_FILE);
     notify(self, PROP_TUNING);
     set_state(self, WOODSHED_STATE_RECORDING);
     update_tick(self);
@@ -689,6 +967,8 @@ void woodshed_engine_record_stop(WoodshedEngine *self)
     self->tuning = woodshed::detect_tuning(*impl->take);
     notify(self, PROP_TUNING);
     set_state(self, frames_of(self) ? WOODSHED_STATE_PAUSED : WOODSHED_STATE_IDLE);
+    if (frames_of(self))
+        save_take(self);
     update_tick(self);
     notify(self, PROP_DURATION);
     notify(self, PROP_LEVEL);
@@ -767,6 +1047,7 @@ static void set_loop_frames(WoodshedEngine *self, std::size_t start, std::size_t
     self->loop_start = std::min(start, end);
     self->loop_end = std::max(start, end);
     push_loop(self);
+    schedule_state_save(self);
     notify(self, PROP_LOOP_START);
     notify(self, PROP_LOOP_END);
     if (had != static_cast<bool>(woodshed_engine_get_has_loop(self)))
@@ -799,5 +1080,47 @@ void woodshed_engine_set_looping(WoodshedEngine *self, gboolean looping)
         return;
     self->looping = looping;
     push_loop(self);
+    schedule_state_save(self);
     notify(self, PROP_LOOPING);
+}
+
+const char *woodshed_engine_get_file(WoodshedEngine *self)
+{
+    g_return_val_if_fail(WOODSHED_IS_ENGINE(self), nullptr);
+    return self->impl->file.empty() ? nullptr : self->impl->file.c_str();
+}
+
+void woodshed_engine_open(WoodshedEngine *self, const char *path)
+{
+    g_return_if_fail(WOODSHED_IS_ENGINE(self));
+    g_return_if_fail(path != nullptr);
+    if (self->state == WOODSHED_STATE_RECORDING)
+        return;
+    GTask *task = g_task_new(self, nullptr, on_loaded, nullptr);
+    g_task_set_task_data(task, new load_job{path, ++self->impl->load_generation, nullptr, std::nullopt},
+                         [](gpointer data) { delete static_cast<load_job *>(data); });
+    g_task_run_in_thread(task, load_in_thread);
+    g_object_unref(task);
+}
+
+gboolean woodshed_engine_open_last(WoodshedEngine *self)
+{
+    g_return_val_if_fail(WOODSHED_IS_ENGINE(self), FALSE);
+    char *text = nullptr;
+    if (!g_file_get_contents(last_take_pointer().c_str(), &text, nullptr, nullptr))
+        return FALSE;
+    const std::string path = g_strstrip(text);
+    g_free(text);
+    if (path.empty() || !g_file_test(path.c_str(), G_FILE_TEST_IS_REGULAR))
+        return FALSE;
+    woodshed_engine_open(self, path.c_str());
+    return TRUE;
+}
+
+void woodshed_engine_flush(WoodshedEngine *self)
+{
+    g_return_if_fail(WOODSHED_IS_ENGINE(self));
+    while (self->impl->saving > 0)
+        g_main_context_iteration(nullptr, TRUE);
+    save_state_now(self);
 }

@@ -13,6 +13,7 @@ const app = new Adw.Application({
 });
 
 app.connect('startup', () => {
+    Gtk.Window.set_default_icon_name(app.application_id);
     const css = new Gtk.CssProvider();
     css.load_from_file(Gio.File.new_for_uri(
         GLib.uri_resolve_relative(import.meta.url, 'style.css', GLib.UriFlags.NONE)));

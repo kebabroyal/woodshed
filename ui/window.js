@@ -114,7 +114,13 @@ class WoodshedWindow extends Adw.ApplicationWindow {
             this.engine.connect(`notify::${prop}`, () => this._sync());
         this.engine.connect('error', (_engine, message) =>
             this._toasts.add_toast(new Adw.Toast({title: message})));
+        this.engine.connect('notify::file', () => this._syncTitle());
+        this.connect('close-request', () => {
+            this.engine.flush();
+            return false;
+        });
         this._sync();
+        this.engine.open_last();
     }
 
     // Play, pause and skip in the app being recorded, through MPRIS.
@@ -522,6 +528,11 @@ class WoodshedWindow extends Adw.ApplicationWindow {
         add('s', () => (this._waveform.display = this._waveform.display === Woodshed.Display.WAVEFORM
             ? Woodshed.Display.SPECTROGRAM : Woodshed.Display.WAVEFORM));
         this.add_controller(shortcuts);
+    }
+
+    _syncTitle() {
+        const file = this.engine.file;
+        this.title = file ? `${GLib.path_get_basename(file).replace(/\.[^.]+$/, '')} – Woodshed` : 'Woodshed';
     }
 
     _sync() {

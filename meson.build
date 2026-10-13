@@ -12,6 +12,7 @@ gnome = import('gnome')
 
 api_version = '0.1'
 app_id = 'io.github.kebabroyal.Woodshed'
+dev_app_id = app_id + '.Devel'
 
 subdir('core')
 subdir('gobject')

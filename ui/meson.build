@@ -8,6 +8,7 @@ installed_conf = configuration_data()
 installed_conf.set('MAIN_JS', pkgdatadir / 'main.js')
 installed_conf.set('TYPELIB_DIR', libdir / 'girepository-1.0')
 installed_conf.set('LIB_DIR', libdir)
+installed_conf.set('APP_ID', app_id)
 configure_file(
   input: 'woodshed.in',
   output: 'woodshed-installed',
@@ -17,11 +18,12 @@ install_data(meson.current_build_dir() / 'woodshed-installed',
   install_dir: get_option('bindir'),
   install_mode: 'rwxr-xr-x')
 
-# Dev launcher: JS from the source tree, library from the build tree. No rebuild for UI edits.
+# Dev launcher, own app ID: JS from the source tree, library from the build tree. No rebuild for UI edits.
 dev_conf = configuration_data()
 dev_conf.set('MAIN_JS', meson.current_source_dir() / 'main.js')
 dev_conf.set('TYPELIB_DIR', meson.project_build_root() / 'gobject')
 dev_conf.set('LIB_DIR', meson.project_build_root() / 'gobject')
+dev_conf.set('APP_ID', dev_app_id)
 launcher = configure_file(
   input: 'woodshed.in',
   output: 'woodshed',

@@ -96,7 +96,7 @@
         {
           "type": "dir",
           "path": "../..",
-          "skip": ["build", ".flatpak-builder", "flatpak-build", "flatpak-repo"]
+          "skip": [".git", ".claude", "build", ".flatpak-builder", "flatpak-build", "flatpak-repo"]
         }
       ]
     }

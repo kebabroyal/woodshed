@@ -7,8 +7,11 @@ import System from 'system';
 
 import {WoodshedWindow} from './window.js';
 
+// The dev launcher sets io.github.kebabroyal.Woodshed.Devel.
+const APP_ID = GLib.getenv('WOODSHED_APP_ID') ?? 'io.github.kebabroyal.Woodshed';
+
 const app = new Adw.Application({
-    application_id: 'io.github.kebabroyal.Woodshed',
+    application_id: APP_ID,
     flags: Gio.ApplicationFlags.DEFAULT_FLAGS,
 });
 
@@ -22,7 +25,12 @@ app.connect('startup', () => {
 });
 
 app.connect('activate', () => {
-    const window = app.get_active_window() ?? new WoodshedWindow({application: app});
+    let window = app.get_active_window();
+    if (!window) {
+        window = new WoodshedWindow({application: app});
+        if (APP_ID.endsWith('.Devel'))
+            window.add_css_class('devel');
+    }
     window.present();
 });
 

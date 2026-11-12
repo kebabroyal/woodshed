@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 kebabroyal
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Dev build in the app menu as "Woodshed (dev)": desktop file and icon for the current user.
 set -e
 share="${XDG_DATA_HOME:-$HOME/.local/share}"

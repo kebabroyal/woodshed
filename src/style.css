@@ -1,0 +1,59 @@
+/* SPDX-FileCopyrightText: 2026 kebabroyal
+ * SPDX-License-Identifier: GPL-3.0-or-later */
+
+.transport {
+  padding: 12px 18px 18px;
+}
+
+.adjustment-row {
+  padding: 6px 18px 0;
+}
+
+.transport button.circular {
+  min-width: 64px;
+  min-height: 64px;
+}
+
+.transport button.record {
+  min-width: 80px;
+  min-height: 80px;
+}
+
+.transport button.record.waiting {
+  opacity: 0.6;
+}
+
+.transport button image {
+  -gtk-icon-size: 28px;
+}
+
+.source-button {
+  min-height: 40px;
+}
+
+.source-row {
+  min-height: 56px;
+  padding: 0 12px;
+}
+
+waveform {
+  margin: 12px;
+}
+
+.step {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.value-button > button {
+  min-width: 72px;
+  min-height: 48px;
+}
+
+.value-button.accent > button {
+  color: var(--accent-color);
+}
+
+.speed-preset {
+  min-height: 48px;
+}

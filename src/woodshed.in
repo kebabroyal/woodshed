@@ -1,0 +1,9 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 kebabroyal
+# SPDX-License-Identifier: GPL-3.0-or-later
+export GI_TYPELIB_PATH="@TYPELIB_DIR@${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+export LD_LIBRARY_PATH="@LIB_DIR@${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export WOODSHED_APP_ID="@APP_ID@"
+export WOODSHED_LOCALE_DIR="@LOCALE_DIR@"
+export WOODSHED_VERSION="@VERSION@"
+exec gjs -m "@MAIN_JS@" "$@"

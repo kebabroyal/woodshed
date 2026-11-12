@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=@NAME@
+Name=Woodshed
 Comment=Record, slow down and loop music to transcribe it
 Exec=@EXEC@
 Icon=@APP_ID@

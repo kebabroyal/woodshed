@@ -1,0 +1,18 @@
+Unreleased
+==========
+
+- License is now GPL-3.0-or-later
+- GNOME app layout, translatable, symbolic icon
+- Sonogram by default; mouse wheel zooms, middle drag pans
+
+Woodshed 0.1
+============
+
+First version.
+
+- Record any app's audio, the whole system or a microphone
+- Waveform and sonogram with piano keys; tuning detection
+- Seamless loops; slow down without changing pitch
+- Transpose by semitones or cents; match a record to A440
+- Plays and pauses the source app (MPRIS)
+- Takes saved as FLAC with their settings

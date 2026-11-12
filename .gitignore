@@ -1,5 +1,26 @@
+# Build output
 /build/
-.flatpak-builder/
-flatpak-build/
-flatpak-repo/
+/_build/
+
+# Flatpak
+/.flatpak-builder/
+/flatpak-build/
+/flatpak-repo/
 *.flatpak
+
+# Release archives
+*.tar
+*.tar.*
+*.zip
+*.sha256sum
+
+# Recordings
+*.flac
+*.wav
+
+# Generated
+/po/*.pot
+
+# Local tools and notes
+/.cache/
+/.claude/
